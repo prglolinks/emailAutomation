@@ -15,11 +15,24 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 
+
+/* CHANGES TO BE MADE
+1. Remove unwanted code comments
+2. Why ExcelService is in private final ? Why not @Service and @Autowired implementation??
+3. Under Download Excel API -> Why are you throwing Internal Server Error?? 
+4. Under Download Excel API -> What is e??, Follow Proper name conversion
+5. Under UploadExcel API -> WHy there is a space between byte and [] symbol??
+6. Under UploadExcel API -> Follow proper name conversation, LINE NUMBER: 71
+7. Under UploadExcel API -> Remove extra spaces, Check line number 72
+8. Under UploadExcel API -> What is e??, Follow Proper name conversion
+9. Add more Logger to track the follow
+*/
+
 @RestController
 
 // change the controller class name something genric to project
 //BulkEmailController
-//EmailSenderController
+//EmailSenderController    
 public class ExcelDownloadController {
 
 
