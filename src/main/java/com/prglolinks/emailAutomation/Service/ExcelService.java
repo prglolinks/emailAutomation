@@ -38,6 +38,7 @@ import java.util.Properties;
 5. Remove unwanted spaces
 6. Align the code properly
 7. ClassPathResource Path URL, move to application properties or make it as static final and reuse it.
+8. ClassPath URL is pointing to your local path, Code will not work on other's machine
 */
 
 
