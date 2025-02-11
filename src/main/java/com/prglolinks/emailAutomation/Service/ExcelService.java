@@ -30,6 +30,16 @@ import java.util.Date;
 import java.util.List;
 import java.util.Properties;
 
+/* CHANGES TO BE MADE
+1. Remove unwanted code comments
+2. Add more Logger to track the follow
+3. Remove all sop statement
+4. Follow proper name conversion
+5. Remove unwanted spaces
+6. Align the code properly
+7. ClassPathResource Path URL, move to application properties or make it as static final and reuse it.
+*/
+
 
 @Service
 
