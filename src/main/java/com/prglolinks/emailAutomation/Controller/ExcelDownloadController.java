@@ -3,6 +3,7 @@ package com.prglolinks.emailAutomation.Controller;
 import com.prglolinks.emailAutomation.Service.ExcelService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -26,67 +27,68 @@ import java.io.IOException;
 7. Under UploadExcel API -> Remove extra spaces, Check line number 72
 8. Under UploadExcel API -> What is e??, Follow Proper name conversion
 9. Add more Logger to track the follow
+// change the controller class name something genric to project
+//BulkEmailController
+//EmailSenderController
 */
 
 @RestController
-
-// change the controller class name something genric to project
-//BulkEmailController
-//EmailSenderController    
 public class ExcelDownloadController {
 
+    @Autowired
+    private ExcelService excelService;
+    private Logger logger = LoggerFactory.getLogger(ExcelDownloadController.class);
 
-    private final ExcelService excelService;
-    private static final Logger logger = LoggerFactory.getLogger(ExcelDownloadController.class);
+    @GetMapping("/downloadExcel")
+    public ResponseEntity<byte[]> downloadExcel() {
+        logger.info("Hardcoded sample excel file");
+        String fileName = "prglolinks.xlsx";
 
+        logger.info("Converting the sample file to bytes");
+        try {
+            byte[] excelBytes = excelService.getExcelFile(fileName);
 
-    public ExcelDownloadController(ExcelService excelService) {
-            this.excelService = excelService;
-        }
-
-        @GetMapping("/downloadExcel")
-        public ResponseEntity<byte[]> downloadExcel() {
-
-            String fileName = "prglolinks.xlsx";
-
-            try {
-                byte[] excelBytes = excelService.getExcelFile(fileName);
-
-                if (excelBytes == null) {
-                    logger.warn("File not found: {}", fileName);
-                    return ResponseEntity.notFound().build();
-                }
-
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
-                headers.setContentDispositionFormData("attachment", fileName);
-
-                return new ResponseEntity<>(excelBytes, headers, HttpStatus.OK);
-            } catch (IOException e) {
-                logger.error("Error while reading the file: {}", fileName, e);
-                return ResponseEntity.internalServerError().build();
+            if (excelBytes == null) {
+                logger.warn("File not found: {}", fileName);
+                return ResponseEntity.notFound().build();
             }
+            logger.info("Creating http headers with content type and disposition");
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+            headers.setContentDispositionFormData("attachment", fileName);
+
+            logger.info("Response success, downloaded file");
+            return new ResponseEntity<>(excelBytes, headers, HttpStatus.OK);
+
+        } catch (IOException ioException) {
+            logger.error("Error while reading the file: {}", fileName, ioException);
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         }
+    }
 
     @PostMapping("/uploadExcel")
-    public ResponseEntity<byte []> uploadExcel(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<byte[]> uploadExcel(@RequestParam("file") MultipartFile file) {
         try {
+            logger.info("Converting the sample file to bytes");
             byte[] excelBytes  = excelService.readExcelFile(file);
 
             if (excelBytes == null) {
                 logger.warn("File not found: {}", file);
                 return ResponseEntity.notFound().build();
             }
-
+            logger.info("Creating http headers with content type and disposition");
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
             headers.setContentDispositionFormData("attachment", "file");
 
+            logger.info("Response success, downloaded file");
             return new ResponseEntity<>(excelBytes, headers, HttpStatus.OK);
-        } catch (IOException e) {
-            logger.error("Error while reading the file: {}", file, e);
-            return ResponseEntity.internalServerError().build();
+
+        } catch (IOException ioException) {
+            logger.error("Error while reading the file: {}", file, ioException);
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         }
+
     }
 
 }
