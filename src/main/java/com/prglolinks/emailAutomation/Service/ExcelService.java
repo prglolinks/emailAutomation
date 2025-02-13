@@ -1,7 +1,7 @@
 package com.prglolinks.emailAutomation.Service;
 
-import com.prglolinks.emailAutomation.Configuration.EmailConfig;
-import jakarta.mail.*;
+import jakarta.mail.MessagingException;
+import jakarta.mail.Session;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import org.apache.commons.lang3.StringUtils;
@@ -11,15 +11,19 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Properties;
 
@@ -39,49 +43,58 @@ import java.util.Properties;
 @Service
 public class ExcelService {
 
-    private Logger logger = LoggerFactory.getLogger(ExcelService.class);
-
-    @Autowired
-    private EmailConfig emailConfig;
+    public static final Logger LOGGER = LoggerFactory.getLogger(ExcelService.class);
 
     @Autowired
     private JavaMailSender javaMailSender;
 
-    public byte[] getExcelFile(String fileName) throws IOException {
-        logger.info("Inside getExcelFile method from service");
+    public static String paths = "src/main/files/";
 
-            ClassPathResource resource = new ClassPathResource("static/" + fileName);
-            if (!resource.exists()) {
-                logger.warn("File Not Found");
-            }
+    @Value("${spring.mail.username}")
+    private String username;
+
+    public byte[] getExcelFile(String fileName) throws IOException {
+
+        LOGGER.info("Inside getExcelFile method from service");
+        byte [] data = new byte[fileName.length()];
+        ClassPathResource resource = new ClassPathResource("static/" + fileName);
+        if (!resource.exists()) {
+            LOGGER.warn("File Not Found in the resources/static directory");
+            throw new FileNotFoundException("Template File not found in the specified directory");
+        }
+        else {
             try (InputStream inputStream = resource.getInputStream()) {
-                logger.info("Excel data read successfully");
-                return inputStream.readAllBytes();
+                LOGGER.info("Template Excel data read successfully");
+                data = inputStream.readAllBytes();
+            } catch (Exception exception){
+                LOGGER.error("Exception occured : " + exception);
             }
         }
+        return data;
+    }
 
-    public byte[] readExcelFile(MultipartFile file) throws IOException {
+    public byte[] readExcelFile(MultipartFile file) throws Exception {
 
-        logger.info("Getting into readExcelFile Method");
-        File unzippedFile = new File("src/main/files/", file.getOriginalFilename());
-        unzippedFile.createNewFile();
+        LOGGER.info("Getting into readExcelFile Method");
+        try {
+            File uploadedFile = new File(paths, file.getOriginalFilename());
+            uploadedFile.createNewFile();
+            FileOutputStream fos = new FileOutputStream(uploadedFile);
+            fos.write(file.getBytes());
+            LOGGER.info("Input file has been stored in src/main/files directory");
 
-        FileOutputStream fos = new FileOutputStream(unzippedFile);
-        fos.write(file.getBytes());
-        logger.info("Input file has been stored in src/main/files directory");
+            LOGGER.info("Reading the stored file as inputstream");
+            FileInputStream inputStream = new FileInputStream(uploadedFile);
 
-        logger.info("Reading the stored file as inputstream");
-        try (FileInputStream inputStream = new FileInputStream(unzippedFile) {
-        }) {
             Workbook workbook = createWorkbook(inputStream, file.getOriginalFilename());
             Sheet sheet = workbook.getSheetAt(0);
-        logger.info("Workbook created and got the sheet ");
+            LOGGER.info("Workbook created and got the sheet ");
 
-        logger.info("Loop started from 1st row excluding header row");
+            LOGGER.info("Loop started from 1st row excluding header row");
             for (int j = 1; j <= sheet.getLastRowNum(); j++) {
                 Row row = sheet.getRow(j);
 
-        logger.info("reading 1st row details by each column");
+                LOGGER.info("reading 1st row details by each column");
                 int no = (int) (row.getCell(0).getNumericCellValue());
                 String name = getCellValueAsString(row.getCell(1));
                 String email = getCellValueAsString(row.getCell(2));
@@ -89,127 +102,119 @@ public class ExcelService {
                 String subject = getCellValueAsString(row.getCell(4));
                 String content = getCellValueAsString(row.getCell(5));
 
-        logger.info("Data validation started");
-                String[] str = new String[row.getLastCellNum() - 1];
-                str[0] = String.valueOf(validateData(name, false, false, "name"));
-                str[1] = String.valueOf(validateData(email, true, false, "email"));
-                str[2] = String.valueOf(validateData(dateOfBirth, false, true, "dateOfBirth"));
-                str[3] = String.valueOf(validateData(subject, false, false, "subject"));
-                str[4] = String.valueOf(validateData(content, false, false, "content"));
+                LOGGER.info("Data validation started");
+                StringBuffer ssb = validateData(name,email,dateOfBirth,subject,content);
 
-                StringBuffer ssb = new StringBuffer();
-                for (String st : str) {
-                    ssb.append(st);
-                }
                 Cell cell = row.getCell(6);
                 if (cell == null) {
                     cell = row.createCell(6, CellType.STRING);
                 }
-                cell.setCellValue(String.valueOf(ssb));
-        logger.info("Data has been written in result column i.e cell(6)");
+                cell.setCellValue(ssb.toString());
+                LOGGER.info("Data has been written in result column i.e cell(6)");
 
-        logger.info("Email check started");
-                if (!String.valueOf(row.getCell(6)).contains("invalid")) {
-                    String to = email;
-                    String from = emailConfig.getUsername();
+                LOGGER.info("Email check started");
+                if (ssb.isEmpty()) {
 
-        logger.info("Getting system properties and password");
+                    LOGGER.info("Getting system properties and password");
                     Properties properties = System.getProperties();
-                    Session session = Session.getInstance(properties, new Authenticator() {
-                        protected PasswordAuthentication getPasswordAuthentication() {
-                            return new PasswordAuthentication(emailConfig.getUsername(), emailConfig.getUsername());
-                        }
-                    });
 
-        logger.info("Trigerring email with mime message");
+                    Session session = Session.getInstance(properties);
+
+                    LOGGER.info("Trigerring email with mime message");
                     try {
                         MimeMessage message = new MimeMessage(session);
-                        message.setFrom(new InternetAddress(from));
-                        message.addRecipient(Message.RecipientType.TO, new InternetAddress(to));
-                        message.setSubject(subject);
-                        message.setText(content);
+                        MimeMessageHelper helper = new MimeMessageHelper(message, true);
+                        helper.setFrom(new InternetAddress(username));
+                        helper.setTo(email);
+                        helper.setSubject(subject);
+                        helper.setText(content);
+
+                        Path path = Paths.get(paths,"/attach.pdf");
+                        byte[] attachContent = Files.readAllBytes(path);
+                        helper.addAttachment("attach.pdf",new ByteArrayResource(attachContent));
                         javaMailSender.send(message);
+
                         row.getCell(6).setCellValue("Mail Sent");
-        logger.info("Mail sent and result appended");
+                        LOGGER.info("Mail sent and result appended");
                     } catch (MessagingException messagingException) {
-                        logger.error("Error sending the message to : {}", name, messagingException);
+                        LOGGER.error("Error sending the message to : {}", name, messagingException);
                     }
-                } else {
-                        logger.info("Invalid Data found in the current profile : {}", name);
+                }
+                else {
+                    LOGGER.info("Invalid Data found in the current profile with no : {}", no);
                 }
             }
 
-        logger.info("writing result data to the file stored");
-            FileOutputStream foss = new FileOutputStream(unzippedFile);
+            LOGGER.info("writing result data to the file stored");
+            FileOutputStream foss = new FileOutputStream(uploadedFile);
             workbook.write(foss);
+        } catch (FileNotFoundException | SecurityException exception){
+            throw new Exception(exception.getMessage());
         }
-        logger.info("Getting the path of stored data and reading as bytes");
-        String path = "src/main/files/FinalSheet.xlsx";
+        LOGGER.info("Getting the path of stored data and reading as bytes");
+        String path = paths + "/FinalSheet.xlsx";
         FileInputStream fis = new FileInputStream(path);
         return fis.readAllBytes();
     }
 
-    public StringBuffer validateData(String header,boolean isEmail, boolean isdate, String key) {
+
+    public StringBuffer validateData(String name, String email, String dob, String subject, String content) {
         StringBuffer sb = new StringBuffer();
-        logger.info("Validation for the row data");
-        if (isEmail) {
-            if (StringUtils.isBlank(header) || !header.contains("@")) {
-                sb.append(key + " id is invalid |");
-            }
-            else {
-                sb.append(key + " id is valid |");
-            }
+        if (StringUtils.isBlank(email) || !email.contains("@") || !email.contains(".")) {
+            sb.append(" Email ID is invalid |");
         }
-            else if (isdate) {
-                if (StringUtils.isBlank(header) || !header.contains("/")) {
-                    sb.append(key + " is invalid |");
-                }
-                else {
-                    sb.append(key + " id is valid |");
-                }
-            }
-            else {
-                if(StringUtils.isBlank(header)){
-                    sb.append(key + " is invalid |");
-                }
-                else {sb.append(key + " is valid |");}
-            }
+        if (StringUtils.isBlank(dob) || !dob.contains("/") ) {
+            sb.append(" Date of Birth is invalid |");
+        }
+        if (StringUtils.isBlank(name)){
+            sb.append(" Name is empty |");
+        }
+        if (StringUtils.isBlank(subject)){
+            sb.append(" Subject is empty |");
+        }
+        if (StringUtils.isBlank(content)){
+            sb.append(" Content is empty |");
+        }
         return sb;
     }
 
     private Workbook createWorkbook(InputStream inputStream, String fileName) throws IOException {
-            if (fileName.endsWith(".xlsx")) {
-                return new XSSFWorkbook(inputStream);
-            } else if (fileName.endsWith(".xls")) {
-                return new HSSFWorkbook(inputStream);
-            } else {
-                logger.error("Invalid file format. Only .xls and .xlsx are supported.");
-                throw new IllegalArgumentException("Invalid file format. Only .xls and .xlsx are supported.");
-            }
-    }
-
-    private String getCellValueAsString(Cell cell) {
-        if (cell == null) return "";
-        switch (cell.getCellType()) {
-            case STRING:
-                return cell.getStringCellValue();
-            case NUMERIC:
-                if (DateUtil.isCellDateFormatted(cell)) {
-                    Date date = cell.getDateCellValue();
-                    LocalDate localDate = date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd");
-                    return localDate.format(formatter);
-                }
-                else {
-                    return String.valueOf(cell.getNumericCellValue());
-                }
-            case BOOLEAN:
-                return String.valueOf(cell.getBooleanCellValue());
-            case FORMULA:
-                return String.valueOf(cell.getNumericCellValue());
-            default:
-                return "";
+        if (fileName.endsWith(".xlsx")) {
+            return new XSSFWorkbook(inputStream);
+        } else if (fileName.endsWith(".xls")) {
+            return new HSSFWorkbook(inputStream);
+        }
+        else {
+            LOGGER.error("Invalid file format. Only .xls and .xlsx are supported.");
+            throw new IllegalArgumentException("Invalid file format. Only .xls and .xlsx are supported.");
         }
     }
 
+    private String getCellValueAsString(Cell cell) {
+        String result;
+        if (cell == null || cell.getCellType() == CellType.BLANK){
+                result = "";
+        }
+        else {
+            switch (cell.getCellType()) {
+                case STRING -> result = cell.getStringCellValue();
+                case NUMERIC -> {
+                                    if (DateUtil.isCellDateFormatted(cell)) {
+                                        Date date = cell.getDateCellValue();
+                                        SimpleDateFormat formatter = new SimpleDateFormat("dd/MM/yyyy");
+                                        String strDate = formatter.format(date);
+                                        result = strDate;
+                                    }
+                                    else {
+                                        result = String.valueOf(cell.getNumericCellValue());
+                                    }
+                                }
+                case BOOLEAN -> result = String.valueOf(cell.getBooleanCellValue());
+                case FORMULA -> result = String.valueOf(cell.getNumericCellValue());
+                case BLANK -> result = "";
+                default -> result = "";
+            }
+        }
+        return result;
+    }
 }

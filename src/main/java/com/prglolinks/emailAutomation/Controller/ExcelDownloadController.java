@@ -37,31 +37,33 @@ public class ExcelDownloadController {
 
     @Autowired
     private ExcelService excelService;
-    private Logger logger = LoggerFactory.getLogger(ExcelDownloadController.class);
+    public static final Logger LOGGER = LoggerFactory.getLogger(ExcelDownloadController.class);
 
     @GetMapping("/downloadExcel")
     public ResponseEntity<byte[]> downloadExcel() {
-        logger.info("Hardcoded sample excel file");
+
+        LOGGER.info("Hardcoded template Excel file");
         String fileName = "prglolinks.xlsx";
 
-        logger.info("Converting the sample file to bytes");
+        LOGGER.info("Converting the template file to bytes");
         try {
             byte[] excelBytes = excelService.getExcelFile(fileName);
 
             if (excelBytes == null) {
-                logger.warn("File not found: {}", fileName);
+                LOGGER.error("File not found: {}", fileName);
                 return ResponseEntity.notFound().build();
             }
-            logger.info("Creating http headers with content type and disposition");
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
-            headers.setContentDispositionFormData("attachment", fileName);
+            else {
+                LOGGER.info("Creating http headers with content type and disposition");
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+                headers.setContentDispositionFormData("attachment", fileName);
 
-            logger.info("Response success, downloaded file");
-            return new ResponseEntity<>(excelBytes, headers, HttpStatus.OK);
-
-        } catch (IOException ioException) {
-            logger.error("Error while reading the file: {}", fileName, ioException);
+                LOGGER.info("Response success, downloaded file");
+                return new ResponseEntity<>(excelBytes, headers, HttpStatus.OK);
+            }
+        }   catch(Exception exception) {
+            LOGGER.error("Error while reading the file: {}", fileName, exception);
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         }
     }
@@ -69,23 +71,23 @@ public class ExcelDownloadController {
     @PostMapping("/uploadExcel")
     public ResponseEntity<byte[]> uploadExcel(@RequestParam("file") MultipartFile file) {
         try {
-            logger.info("Converting the sample file to bytes");
+            LOGGER.info("Converting the sample file to bytes");
             byte[] excelBytes  = excelService.readExcelFile(file);
 
             if (excelBytes == null) {
-                logger.warn("File not found: {}", file);
+                LOGGER.warn("File not found: {}", file);
                 return ResponseEntity.notFound().build();
             }
-            logger.info("Creating http headers with content type and disposition");
+            LOGGER.info("Creating http headers with content type and disposition");
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
             headers.setContentDispositionFormData("attachment", "file");
 
-            logger.info("Response success, downloaded file");
+            LOGGER.info("Response success, downloaded file");
             return new ResponseEntity<>(excelBytes, headers, HttpStatus.OK);
 
-        } catch (IOException ioException) {
-            logger.error("Error while reading the file: {}", file, ioException);
+        } catch (Exception ioException) {
+            LOGGER.error("Error while reading the file: {}", file, ioException);
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         }
 
