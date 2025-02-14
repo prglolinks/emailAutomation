@@ -26,6 +26,7 @@ import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Properties;
+import java.util.regex.Pattern;
 
 /* CHANGES TO BE MADE
 1. Remove unwanted code comments
@@ -56,7 +57,7 @@ public class ExcelService {
     public byte[] getExcelFile(String fileName) throws IOException {
 
         LOGGER.info("Inside getExcelFile method from service");
-        byte [] data = new byte[fileName.length()];
+        byte [] data = null;
         ClassPathResource resource = new ClassPathResource("static/" + fileName);
         if (!resource.exists()) {
             LOGGER.warn("File Not Found in the resources/static directory");
@@ -65,9 +66,11 @@ public class ExcelService {
         else {
             try (InputStream inputStream = resource.getInputStream()) {
                 LOGGER.info("Template Excel data read successfully");
+                data = new byte[fileName.length()];
                 data = inputStream.readAllBytes();
             } catch (Exception exception){
                 LOGGER.error("Exception occured : " + exception);
+//                throw new Exception()
             }
         }
         return data;
@@ -83,7 +86,7 @@ public class ExcelService {
             fos.write(file.getBytes());
             LOGGER.info("Input file has been stored in src/main/files directory");
 
-            LOGGER.info("Reading the stored file as inputstream");
+            LOGGER.info("Reading the stored file");
             FileInputStream inputStream = new FileInputStream(uploadedFile);
 
             Workbook workbook = createWorkbook(inputStream, file.getOriginalFilename());
@@ -94,7 +97,7 @@ public class ExcelService {
             for (int j = 1; j <= sheet.getLastRowNum(); j++) {
                 Row row = sheet.getRow(j);
 
-                LOGGER.info("reading 1st row details by each column");
+                LOGGER.info("reading row details by each column");
                 int no = (int) (row.getCell(0).getNumericCellValue());
                 String name = getCellValueAsString(row.getCell(1));
                 String email = getCellValueAsString(row.getCell(2));
@@ -121,7 +124,7 @@ public class ExcelService {
                     Session session = Session.getInstance(properties);
 
                     LOGGER.info("Trigerring email with mime message");
-                    try {
+
                         MimeMessage message = new MimeMessage(session);
                         MimeMessageHelper helper = new MimeMessageHelper(message, true);
                         helper.setFrom(new InternetAddress(username));
@@ -136,9 +139,6 @@ public class ExcelService {
 
                         row.getCell(6).setCellValue("Mail Sent");
                         LOGGER.info("Mail sent and result appended");
-                    } catch (MessagingException messagingException) {
-                        LOGGER.error("Error sending the message to : {}", name, messagingException);
-                    }
                 }
                 else {
                     LOGGER.info("Invalid Data found in the current profile with no : {}", no);
@@ -148,26 +148,35 @@ public class ExcelService {
             LOGGER.info("writing result data to the file stored");
             FileOutputStream foss = new FileOutputStream(uploadedFile);
             workbook.write(foss);
+            LOGGER.info("Getting the path of stored data and reading as bytes");
+            String path = paths + "/FinalSheet.xlsx";
+            FileInputStream fis = new FileInputStream(path);
+            return fis.readAllBytes();
         } catch (FileNotFoundException | SecurityException exception){
-            throw new Exception(exception.getMessage());
+            LOGGER.error("Exception occurred " + exception.getMessage());
+            return ("Exception occured " + exception.getMessage()).getBytes();
+        } catch (IllegalArgumentException illegalArgumentException){
+            LOGGER.info("Invalid file format. Only .xls and .xlsx are supported.");
+            return "Invalid file format. Only .xls and .xlsx are supported.".getBytes();
+        } catch (MessagingException messagingException) {
+            LOGGER.error("Error sending the message to the current row", messagingException);
+            return ("Error sending the message to the current row" + messagingException).getBytes();
         }
-        LOGGER.info("Getting the path of stored data and reading as bytes");
-        String path = paths + "/FinalSheet.xlsx";
-        FileInputStream fis = new FileInputStream(path);
-        return fis.readAllBytes();
+
     }
 
 
     public StringBuffer validateData(String name, String email, String dob, String subject, String content) {
+        LOGGER.info("Inside validateData Method");
         StringBuffer sb = new StringBuffer();
         if (StringUtils.isBlank(email) || !email.contains("@") || !email.contains(".")) {
             sb.append(" Email ID is invalid |");
         }
-        if (StringUtils.isBlank(dob) || !dob.contains("/") ) {
+        if (StringUtils.isBlank(dob) || !dob.contains("/")) {
             sb.append(" Date of Birth is invalid |");
         }
-        if (StringUtils.isBlank(name)){
-            sb.append(" Name is empty |");
+        if (StringUtils.isBlank(name) || !Pattern.matches("[a-zA-Z]+",name)){
+            sb.append(" Name is empty/only letters allowed |");
         }
         if (StringUtils.isBlank(subject)){
             sb.append(" Subject is empty |");
@@ -175,25 +184,27 @@ public class ExcelService {
         if (StringUtils.isBlank(content)){
             sb.append(" Content is empty |");
         }
+        LOGGER.info("Validation done for all fields");
         return sb;
     }
 
     private Workbook createWorkbook(InputStream inputStream, String fileName) throws IOException {
+        LOGGER.info("Inside createWorkbook method");
         if (fileName.endsWith(".xlsx")) {
             return new XSSFWorkbook(inputStream);
         } else if (fileName.endsWith(".xls")) {
             return new HSSFWorkbook(inputStream);
-        }
-        else {
+        } else {
             LOGGER.error("Invalid file format. Only .xls and .xlsx are supported.");
             throw new IllegalArgumentException("Invalid file format. Only .xls and .xlsx are supported.");
         }
     }
 
     private String getCellValueAsString(Cell cell) {
+        LOGGER.info("Insode getCellValueAsString method");
         String result;
         if (cell == null || cell.getCellType() == CellType.BLANK){
-                result = "";
+            result = "";
         }
         else {
             switch (cell.getCellType()) {
@@ -211,10 +222,10 @@ public class ExcelService {
                                 }
                 case BOOLEAN -> result = String.valueOf(cell.getBooleanCellValue());
                 case FORMULA -> result = String.valueOf(cell.getNumericCellValue());
-                case BLANK -> result = "";
                 default -> result = "";
             }
         }
+        LOGGER.info("Data read successfully and stored in variables");
         return result;
     }
 }

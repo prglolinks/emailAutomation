@@ -14,8 +14,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-
 
 /* CHANGES TO BE MADE
 1. Remove unwanted code comments
@@ -64,7 +62,8 @@ public class ExcelDownloadController {
             }
         }   catch(Exception exception) {
             LOGGER.error("Error while reading the file: {}", fileName, exception);
-            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+            String message = "Error while reading the file, check with developer" +  fileName;
+            return new ResponseEntity<>(message.getBytes(), HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -88,7 +87,8 @@ public class ExcelDownloadController {
 
         } catch (Exception ioException) {
             LOGGER.error("Error while reading the file: {}", file, ioException);
-            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+            String message = "Error while reading the file, check with developer";
+            return new ResponseEntity<>(message.getBytes(), HttpStatus.BAD_REQUEST);
         }
 
     }
